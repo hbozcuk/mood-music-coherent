@@ -7,11 +7,11 @@ import streamlit as st
 # 1) HEDEF DEĞERLER (NORMAL DURUM)
 # ============================
 TARGETS = {
-    "anxious": 2.0,        # kaygı düşük
-    "depressed": 2.0,      # depresyon düşük
-    "frightened": 2.0,     # korku düşük
-    "disorganized": 2.0,   # dağınıklık düşük (coherent)
-    "hopeful": 7.0,        # umut yüksek
+    "anxious": 1.0,        # kaygı düşük
+    "depressed": 1.0,      # depresyon düşük
+    "frightened": 1.0,     # korku düşük
+    "disorganized": 1.0,   # dağınıklık düşük (coherent)
+    "hopeful": 9.0,        # umut yüksek
 }
 
 def clamp(x, mn=0.0, mx=10.0):
@@ -368,7 +368,6 @@ def generate_normalizing_music(raw_mood: dict, duration_s: float = 30.0, sr: int
             0.06 * drum_scale * snare_sig
         ) * env_step
 
-        # Çok hafif saturation → pürüzsüzlük korunarak sıcaklık
         step_signal = np.tanh(step_signal * 1.02)
 
         segments.append(step_signal)
@@ -436,64 +435,214 @@ def generate_normalizing_music(raw_mood: dict, duration_s: float = 30.0, sr: int
 # ============================
 # 8) STREAMLIT ARAYÜZÜ
 # ============================
-st.set_page_config(page_title="Lo-fi Coherence Mood Normalizer", page_icon="🎵", layout="centered")
-st.title("🎵 Şifalı Müzik Uygulaması")
+st.set_page_config(page_title="Cepte Müzik Terapisti 1.1", page_icon="🎵", layout="centered")
+st.title("🎵 Cepte Müzik Terapisti 1.1")
 
 st.write(
     """
 Bu uygulama, girdiğiniz ruh hâlini özellikle **anksiyete, korku ve zihinsel dağınıklığı (disorganization)** 
-azaltacak şekilde, daha **coherent / bütün**, **daha da tatlı ve pürüzsüz** bir lo-fi pop parçasına dönüştürür.
+azaltacak şekilde, daha **coherent / bütün**, **tatlı ve pürüzsüz** bir lo-fi pop parçasına dönüştürür.
 
 Zaman yapısı:
 - **İlk %20:** Mevcut dağınıklık ve huzursuzluğun daha belirgin olduğu bölüm
 - **Orta %20:** Geçiş fazı (dağınıklık, vibrato ve uyumsuz notalar kademeli azalır)
 - **Son %60:** Normalleşme fazı – çok yavaş, çok yumuşak, davulları hafif, lead'i sakin,
-  pad ve basın sarıcı olduğu, özellikle rahatlatıcı bölüm
+  pad ve basın sarıcı olduğu, özellikle **anksiyete ve korku** için rahatlatıcı bölüm
 
 Genel ses yapısı:
-- Tempo yavaş
+- Tempo önceye göre yaklaşık **%33 daha yavaş**
 - Daha sine ağırlıklı, üst frekansları törpülenmiş, daha kremsi tonlar
 - Hafif vinil dokusu, güçlü low-pass, yumuşak reverb
 """
 )
 
+# ---------- SLIDER STATE VARSAYILANLARI ----------
+if "anxious_value" not in st.session_state:
+    st.session_state["anxious_value"] = 5.0
+if "depressed_value" not in st.session_state:
+    st.session_state["depressed_value"] = 5.0
+if "frightened_value" not in st.session_state:
+    st.session_state["frightened_value"] = 5.0
+if "disorganized_value" not in st.session_state:
+    st.session_state["disorganized_value"] = 7.0
+if "hopeful_value" not in st.session_state:
+    st.session_state["hopeful_value"] = 3.0
+if "duration_value" not in st.session_state:
+    st.session_state["duration_value"] = 45
+if "last_preset_name" not in st.session_state:
+    st.session_state["last_preset_name"] = None
+
+# ---------- 4 HAZIR MOD (PRESET) ----------
+st.markdown("### 🎚️ Hazır Modlar")
+
+# Artık 4 kolon: 4 preset butonu
+col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+
+preset_mood = None
+preset_name = None
+preset_duration = 300  # varsayılan: 5 dakika
+
+with col_p1:
+    depresyon_btn = st.button("💜 Depresyon mu??")
+with col_p2:
+    endise_btn = st.button("💚 Endişe modu")
+with col_p3:
+    berrak_btn = st.button("💙 Zihnim berrak")
+with col_p4:
+    panik_btn = st.button("❤️‍🔥 Panik modu")
+
+if depresyon_btn:
+    # Depresyondan çıkıyorum:
+    # depresyon = 10, anksiyete = 5, zihinsel dağınıklık = 5, umut = 0, korku = 5
+    preset_name = "Depresyondan çıkıyorum"
+    preset_mood = {
+        "anxious": 5.0,
+        "depressed": 10.0,
+        "disorganized": 5.0,
+        "hopeful": 0.0,
+        "frightened": 5.0,
+    }
+    preset_duration = 300  # 5 dakika
+
+elif endise_btn:
+    # Endişeye hoşçakal:
+    # endişe = 10 (anxious), depresyon ~ 5, zihinsel dağınıklık = 5, umut = 5, korku = 5
+    preset_name = "Endişeye hoşçakal"
+    preset_mood = {
+        "anxious": 10.0,
+        "depressed": 5.0,
+        "disorganized": 5.0,
+        "hopeful": 5.0,
+        "frightened": 5.0,
+    }
+    preset_duration = 300  # 5 dakika
+
+elif berrak_btn:
+    # Zihnim berrak:
+    # depresyon = 5, anksiyete = 5, zihin dağınıklığı = 10, umut = 0, korku = 7
+    preset_name = "Zihnim berrak"
+    preset_mood = {
+        "anxious": 5.0,
+        "depressed": 5.0,
+        "disorganized": 10.0,
+        "hopeful": 0.0,
+        "frightened": 7.0,
+    }
+    preset_duration = 300  # 5 dakika
+
+elif panik_btn:
+    # Panik modu:
+    # depresyon = 10, anksiyete = 10, umut = 0, zihin dağınıklığı = 10, korku = 10
+    preset_name = "Panik modu"
+    preset_mood = {
+        "anxious": 10.0,
+        "depressed": 10.0,
+        "disorganized": 10.0,
+        "hopeful": 0.0,
+        "frightened": 10.0,
+    }
+    preset_duration = 60  # 60 saniye
+
+# Eğer bir preset seçildiyse: SLIDERLARDAN ÖNCE session_state güncelle
+if preset_mood is not None:
+    st.session_state["anxious_value"] = preset_mood["anxious"]
+    st.session_state["depressed_value"] = preset_mood["depressed"]
+    st.session_state["disorganized_value"] = preset_mood["disorganized"]
+    st.session_state["hopeful_value"] = preset_mood["hopeful"]
+    st.session_state["frightened_value"] = preset_mood["frightened"]
+    st.session_state["duration_value"] = preset_duration
+    st.session_state["last_preset_name"] = preset_name
+
+# ---------- SLIDERLAR (SERBEST MOD AYARLARI) ----------
+st.markdown("### 🎚️ Duygu Ayarları (Serbest Mod)")
+
 col1, col2 = st.columns(2)
 with col1:
-    anxious = st.slider("Kaygılı", 0.0, 10.0, 5.0, 0.5)
-    depressed = st.slider("Çökkün", 0.0, 10.0, 5.0, 0.5)
-    frightened = st.slider("Korkulu", 0.0, 10.0, 5.0, 0.5)
+    anxious = st.slider(
+        "Anxious (kaygılı)",
+        0.0, 10.0,
+        step=0.5,
+        key="anxious_value",
+    )
+    depressed = st.slider(
+        "Depressed (çökkün)",
+        0.0, 10.0,
+        step=0.5,
+        key="depressed_value",
+    )
+    frightened = st.slider(
+        "Frightened (korkulu)",
+        0.0, 10.0,
+        step=0.5,
+        key="frightened_value",
+    )
 with col2:
-    disorganized = st.slider("Zihinsel dağınık", 0.0, 10.0, 7.0, 0.5)
-    hopeful = st.slider("Umutlu", 0.0, 10.0, 3.0, 0.5)
+    disorganized = st.slider(
+        "Disorganized (zihinsel dağınık)",
+        0.0, 10.0,
+        step=0.5,
+        key="disorganized_value",
+    )
+    hopeful = st.slider(
+        "Hopeful (umutlu)",
+        0.0, 10.0,
+        step=0.5,
+        key="hopeful_value",
+    )
 
 duration = st.slider(
     "Müziğin süresi (saniye)",
     min_value=10,
-    max_value=120,
-    value=45,
-    step=5,
-    help="10 saniyeden 2 dakikaya kadar seçebilirsiniz.",
+    max_value=600,      # 10 dakika
+    step=10,
+    key="duration_value",
+    help="10 saniyeden 10 dakikaya kadar seçebilirsiniz.",
 )
 
-raw_mood = {
-    "anxious": anxious,
-    "depressed": depressed,
-    "frightened": frightened,
-    "disorganized": disorganized,
-    "hopeful": hopeful,
+raw_mood_manual = {
+    "anxious": st.session_state["anxious_value"],
+    "depressed": st.session_state["depressed_value"],
+    "frightened": st.session_state["frightened_value"],
+    "disorganized": st.session_state["disorganized_value"],
+    "hopeful": st.session_state["hopeful_value"],
 }
+duration_manual = st.session_state["duration_value"]
 
-if st.button("🎧 Ekstra Tatlı & Pürüzsüz Lo-fi Müzik Üret", type="primary"):
-    with st.spinner("Müzik üretiliyor (yavaş, ekstra tatlı & pürüzsüz lo-fi)..."):
-        wav_bytes, info = generate_normalizing_music(raw_mood, duration_s=duration, sr=44100)
+# Seçili preset varsa bilgi göster
+if st.session_state.get("last_preset_name"):
+    st.info(
+        f"Seçili hazır mod: **{st.session_state['last_preset_name']}**. "
+        "İsterseniz slider'lardan ince ayar yapabilirsiniz."
+    )
 
-    st.markdown("### ▶️ Normalleştirici Ekstra Tatlı Lo-fi Müzik")
+# ---------- PRESET MÜZİK ÜRETİMİ ----------
+if preset_mood is not None:
+    st.markdown("### ▶️ Hazır Mod Parçası")
+    with st.spinner("Preset mod için müzik üretiliyor..."):
+        wav_bytes, info = generate_normalizing_music(preset_mood, duration_s=preset_duration, sr=44100)
+
+    st.audio(wav_bytes, format="audio/wav")
+    st.write(f"🎨 Bu seferki stil: **{info['style_desc']}**")
+    st.download_button(
+        label="💾 Preset müziğini indir (WAV)",
+        data=wav_bytes,
+        file_name=f"preset_{preset_name.replace(' ', '_')}_5dakika.wav",
+        mime="audio/wav",
+    )
+
+# ---------- SERBEST MOD ----------
+st.markdown("### 🎧 Serbest Mod")
+
+if st.button("🎧 Serbest Mod: Tatlı & Pürüzsüz Lo-fi Üret", type="primary"):
+    with st.spinner("Müzik üretiliyor (serbest mod, ekstra tatlı & pürüzsüz lo-fi)..."):
+        wav_bytes, info = generate_normalizing_music(raw_mood_manual, duration_s=duration_manual, sr=44100)
+
+    st.markdown("### ▶️ Serbest Mod Parçası")
     st.audio(wav_bytes, format="audio/wav")
 
     st.write(f"🎨 Bu seferki stil: **{info['style_desc']}**")
-
     st.download_button(
-        label="💾 Müziği indir (WAV)",
+        label="💾 Serbest mod müziğini indir (WAV)",
         data=wav_bytes,
         file_name="lofi_coherence_extra_sweet_slow_music.wav",
         mime="audio/wav",
@@ -501,8 +650,11 @@ if st.button("🎧 Ekstra Tatlı & Pürüzsüz Lo-fi Müzik Üret", type="primar
 
     st.success(
         "Başta daha dağınık, orta kısımda geçiş, son %60'ında ise özellikle "
-        "yatıştırıcı, daha da tatlı ve pürüzsüz "
+        "anksiyete ve korkuyu yatıştırmaya yönelik, tatlı ve pürüzsüz "
         "bir lo-fi parça üretildi."
     )
 
-st.caption("Bu araç deneysel ve destekleyicidir.")
+st.caption(
+    "Bu araç deneysel ve destekleyicidir; tıbbi / psikiyatrik tedavinin yerine geçmez. "
+    "Ruhsal rahatsızlıkların tedavisi için psikolog ve psikiatristlere başvurulmalıdır."
+)

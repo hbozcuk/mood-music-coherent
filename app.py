@@ -181,7 +181,7 @@ def lofi_filter(signal: np.ndarray, kernel_size: int = 15) -> np.ndarray:
 # ============================
 # 7) SES ÜRETİMİ (LO-FI POP + 3 FAZ + ÇOK YUMUŞAK BİTİŞ)
 # ============================
-def generate_normalizing_music(raw_mood: dict, duration_s: float = 30.0, sr: int = 44100):
+def generate_normalizing_music(raw_mood: dict, duration_s: float = 30.0, sr: int = 22050):
     rng = np.random.default_rng()
 
     params = design_music_params(raw_mood)
@@ -619,7 +619,7 @@ if st.session_state.get("last_preset_name"):
 if preset_mood is not None:
     st.markdown("### ▶️ Hazır Mod Parçası")
     with st.spinner("Preset mod için müzik üretiliyor..."):
-        wav_bytes, info = generate_normalizing_music(preset_mood, duration_s=preset_duration, sr=44100)
+        wav_bytes, info = generate_normalizing_music(preset_mood, duration_s=preset_duration, sr=22050)
 
     st.audio(wav_bytes, format="audio/wav")
     st.write(f"🎨 Bu seferki stil: **{info['style_desc']}**")
@@ -635,7 +635,7 @@ st.markdown("### 🎧 Serbest Mod")
 
 if st.button("🎧 Serbest Mod: Tatlı & Pürüzsüz Lo-fi Üret", type="primary"):
     with st.spinner("Müzik üretiliyor (serbest mod, ekstra tatlı & pürüzsüz lo-fi)..."):
-        wav_bytes, info = generate_normalizing_music(raw_mood_manual, duration_s=duration_manual, sr=44100)
+        wav_bytes, info = generate_normalizing_music(raw_mood_manual, duration_s=duration_manual, sr=22050)
 
     st.markdown("### ▶️ Serbest Mod Parçası")
     st.audio(wav_bytes, format="audio/wav")
@@ -658,3 +658,4 @@ st.caption(
     "Bu araç deneysel ve destekleyicidir; tıbbi / psikiyatrik tedavinin yerine geçmez. "
     "Ruhsal rahatsızlıkların tedavisi için psikolog ve psikiatristlere başvurulmalıdır."
 )
+
